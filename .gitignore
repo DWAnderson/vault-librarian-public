@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# Runtime data written by the service (queue items, run reports, logs)
+/queue/
+/reports/
+*.log
+# Folders created when %LOCALAPPDATA% was not expanded
+**/%LOCALAPPDATA%*/
+
+# Hand-made backups and staging copies (git replaces these from now on)
+/setup/_backup-*/
+/setup/_staging-*/
+*.bak
+*.bak-*
+*.before-*
+*.pre-*
+
+# Local settings and personal working files (the committed template is config/vault.example.json)
+/config/vault.json
+/config/*.local.json
+/_handoff/
+
+/config/privacy-terms.local.txt

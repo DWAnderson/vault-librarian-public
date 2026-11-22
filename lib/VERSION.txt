@@ -1,0 +1,37 @@
+Vault Librarian lib, published 2026-11-22T16:59:23 from the skill source folders
+
+d41d8cd98f00b204e9800998ecf8427e  remember\__init__.py
+b2e593d2062bb6084017757f47ad23fd  remember\dpapi.py
+93da39d420ca5c7925d7c7b1752c7d48  remember\gemini_pool.py
+f8bf27533d85a83031bcce22a8d78ec0  remember\notes.py
+1387cd9bada7ccc435f24a3750b916c7  remember\summarizer.py
+9e6f1ccc6c95b6904bef27133f7ba86b  remember\transcript.py
+f1f58e2a028474bbbe179ee14d7972bc  remember\usage_ledger.py
+33f331b74be4d393e23871d2f346269f  remember\vault_writer.py
+2cc83a95d8b039fcbec3c6c8cdc25ca9  remember\youtube.py
+49291634f054292a5ae60271ddab6590  url-to-vault\scripts\citation_fill.py
+10727a0f562a5644ac44a382dd40a4be  url-to-vault\scripts\citation.py
+e39891055df30c7922f7be5eb3c70017  url-to-vault\scripts\comics.py
+e29f3cb21694d1fbd56c0d55e5fde3cc  url-to-vault\scripts\url_probe.py
+f4aae4a9a6dd9f76ce257ed33b230b63  url-to-vault\scripts\url_to_note.py
+2cedec6823717ec0ff2cd326e48c7044  vault-librarian\scripts\apply_plan.py
+f75d1e9ce44e3ff3a6a0a5b98b5f4d70  vault-librarian\scripts\build_concepts.py
+191494ba9507ab139c47530e35c47ecc  vault-librarian\scripts\build_hubs.py
+8e17e2717b97f3fde60ae935b93c22cf  vault-librarian\scripts\build_indexes.py
+8bf0ab73ed74a00b1b3bbd01de3c60b9  vault-librarian\scripts\concept_lint.py
+a588e647994f72059db334f145602cd2  vault-librarian\scripts\copy_out.py
+7ae7d330c0fc40a0087f1e380b56385c  vault-librarian\scripts\email_to_note.py
+73db6fb55510991e411a3f09b95f9534  vault-librarian\scripts\file_to_note.py
+e5e86840fa3afffcf3f134251ba773d4  vault-librarian\scripts\find_duplicates.py
+8cd322c966a8484a76258cf6cd413409  vault-librarian\scripts\find_mentions.py
+827367e2237ac9f71971e32ffff32ce8  vault-librarian\scripts\find_partials.py
+e2c957e490525e1f7ce4c84a0e203e6f  vault-librarian\scripts\move_internal.py
+2d9a98af5cd1426467330b56221f718d  vault-librarian\scripts\neutralize_links.py
+785f516430d5bba75b102aedd8a9026c  vault-librarian\scripts\normalize_props.py
+6cbfccca16dbe9a8f93fb523d1213d56  vault-librarian\scripts\okf_export.py
+418c12be278fa06f4866f28df8b9d7c0  vault-librarian\scripts\okf_lint.py
+1fa9ad9ccf69f7ef9f28f89bc0758d62  vault-librarian\scripts\okf_search.py
+791ea736c5d407762edf0d60325dfb58  vault-librarian\scripts\resolve_duplicates.py
+fbaf70171d1bed90efc2a7a5ac618a94  vault-librarian\scripts\review_page.py
+5e7baf798ed336862a0220c9d628c8a0  vault-librarian\scripts\sync_notes.py
+089da0ec9c44042b9b13ed2e3f9d4cbd  vault-librarian\scripts\vaultlib.py

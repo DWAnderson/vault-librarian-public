@@ -1,0 +1,269 @@
+{
+  "_about": "Vault Librarian settings. Copy to config/vault.json (setup/install.ps1 does this and asks the main questions); vault.json is local and never committed. %VARS% are expanded. Keys starting with _ are comments. Feature switches: see docs/CONFIGURATION.md.",
+  "vault_path": "%USERPROFILE%\\Documents\\Obsidian Vault",
+  "local_root": "%LOCALAPPDATA%\\VaultLibrarian",
+  "runtime": "%LOCALAPPDATA%\\Programs\\VaultLibrarian\\runtime",
+  "_note_sandbox": "Claude desktop sessions see AppData\\Local through the Claude app sandbox: start jobs via Task Scheduler (Start-ScheduledTask), not by running python directly from Claude.",
+  "graph_credentials": "%LOCALAPPDATA%\\VaultLibrarian\\credentials\\graph-credentials.json",
+  "mailbox": "you@example.com",
+  "notify_to": "you@example.com",
+  "owner": {
+    "_about": "Who owns the vault: named in Claude's instructions and messages (empty name: 'the owner'); id is generated.by of your own notes; about is one optional sentence for Claude (e.g. your profession); note_label is the title of your note on an item (the [!note] callout).",
+    "name": "",
+    "id": "human:owner",
+    "about": "",
+    "note_label": "My note"
+  },
+  "pc_name": "",
+  "mail": {
+    "_about": "Microsoft 365 mail through Graph (an Entra app registration with Mail.ReadWrite and Mail.Send). false: no Remember-folder intake, no emails; the OneDrive dropbox, connector and home page still work.",
+    "enabled": false
+  },
+  "timezone": "America/Chicago",
+  "lock_stale_minutes": 120,
+  "schedule": {
+    "_about": "Run times of the scheduled tasks (home page plan, 2026-11-12). setup/register_tasks.ps1 and the home page's Settings tab both use these; the Intake hours are intake.first_hour/last_hour and QueueNight starts at queue.night_window[0]. daily_summary_slot is another app's morning run to keep clear of (read only here: Claude work is kept out of it). Change times on the home page, or edit here and re-run register_tasks.ps1.",
+    "task_path": "\\VaultLibrarian\\",
+    "Organize": "06:00",
+    "SignInCheck": "21:00",
+    "YouTubeRemember": "02:05",
+    "Nightly": "02:30",
+    "Originals": "02:45",
+    "Weekly": "Sun 03:30",
+    "daily_summary_slot": [
+      "04:45",
+      "05:30"
+    ]
+  },
+  "intake": {
+    "enabled": true,
+    "first_hour": 7,
+    "last_hour": 23,
+    "every_minutes": 30,
+    "batch": 20,
+    "remember_folder": "Remember",
+    "confidential_domains": [],
+    "signature_markers": [],
+    "verbatim_max_words": 2000
+  },
+  "podcasts": {
+    "_about": "Optional: a separate podcast pipeline script that writes Podcast Summary notes. Leave vault_episode empty to skip.",
+    "vault_episode": "",
+    "python": "",
+    "timeout_minutes": 45
+  },
+  "summaries": "claude",
+  "nightly": {
+    "dry_run": true,
+    "citation_fill": "auto",
+    "snapshots_daily": 7,
+    "snapshots_weekly": 4,
+    "memory": {
+      "commit_warn_pct": 85,
+      "process_warn_gb": 4,
+      "top": 5
+    }
+  },
+  "weekly": {
+    "backfill_citations": 40
+  },
+  "organize": {
+    "web_base": "http://127.0.0.1:8766/vault",
+    "approve_by_email_reply": true,
+    "batch": 40
+  },
+  "report": {
+    "vault_note": "Claude/Other/Vault Maintenance Report.md",
+    "email": "when_needed"
+  },
+  "cowork_sync": {
+    "enabled": false
+  },
+  "remember": {
+    "_about": "YouTube Remember intake (jobs/remember.py, task \\VaultLibrarian\\YouTubeRemember at 02:05). Plan: 2026-09-26 YouTube Remember intake - plan.md",
+    "dry_run": true,
+    "playlist": "Remember",
+    "video_cap_seconds": 27000,
+    "stop_by": "05:45",
+    "media_resolution": "auto",
+    "enabled": false
+  },
+  "queue": {
+    "_about": "Intake queue (jobs/vqueue.py, jobs/queue_run.py). Plan: 2026-09-28 Intake queue for files and email - plan.md. enabled=false: queue_run.py dry-runs only and intake.py keeps working Remember. Switch over = queue.enabled true + intake.py wrapper (phase 1 step 4).",
+    "enabled": true,
+    "files_enabled": true,
+    "dropbox_path": "%USERPROFILE%\\OneDrive\\Remember",
+    "route_folders": {
+      "Articles": "article",
+      "Books": "book",
+      "Recipes": "recipe",
+      "Manuals": "manual",
+      "Full text": "document",
+      "Summarize": "summary",
+      "Other": "auto"
+    },
+    "rules": [
+      {
+        "match": {
+          "source": "mail"
+        },
+        "priority": 100,
+        "why": "Remember email first"
+      },
+      {
+        "match": {
+          "route": "book"
+        },
+        "priority": 10,
+        "why": "books last"
+      },
+      {
+        "match": {
+          "route": "analyze"
+        },
+        "priority": 30,
+        "why": "analyses after new items (concept analysis plan, 2026-09-28)"
+      },
+      {
+        "match": {},
+        "priority": 50,
+        "why": "default"
+      }
+    ],
+    "per_run": 20,
+    "claude_calls_per_day": 60,
+    "books_per_night": 1,
+    "confirm_over_week_pct": 2,
+    "night_window": [
+      "23:45",
+      "01:55"
+    ],
+    "backends": {
+      "default": "claude-cli"
+    },
+    "_models_about": "Model per route. Every Claude call picks its model here (route or the request's model key, else default); nothing inherits the Claude Code default any more. Opus is kept for whole-item analysis and the book-level synthesis (route analyze); per-chapter part analyses, related-only redos, books and other summaries use Sonnet; short classification and description calls use Haiku. Aliases (opus, sonnet, haiku) follow the newest model of each tier.",
+    "models": {
+      "default": "sonnet",
+      "analyze": "opus",
+      "analyze_part": "sonnet",
+      "analyze_related": "sonnet",
+      "book": "sonnet",
+      "summary": "sonnet",
+      "fix": "sonnet",
+      "organize": "sonnet",
+      "intake-summary": "sonnet",
+      "link-summary": "sonnet",
+      "concept_merge": "sonnet",
+      "manual": "haiku",
+      "title": "haiku",
+      "article": "haiku",
+      "email": "haiku",
+      "recipe": "haiku",
+      "auto": "haiku",
+      "document": "haiku",
+      "intake-describe": "haiku",
+      "link-describe": "haiku"
+    },
+    "thinking_off": [
+      "haiku"
+    ],
+    "attachment_email_max_words": 30,
+    "skip_images_under_kb": 20,
+    "max_attempts": 3
+  },
+  "analysis": {
+    "_about": "Concept analysis (jobs/analyze.py, route analyze). Plan: 2026-09-28 Concept analysis and links - plan.md. Notes created after `since` are analyzed once filed; Reference notes only from Resources; older notes only on request (vqueue.py analyze).",
+    "auto": true,
+    "since": "",
+    "types": [
+      "Article",
+      "Web Clipping",
+      "Web Summary",
+      "Video Summary",
+      "Podcast Summary",
+      "Reference"
+    ],
+    "concepts_max": 8,
+    "related_max": 5,
+    "candidates": 20,
+    "min_words": 150,
+    "max_words": 40000,
+    "reference_folders": [
+      "Resources"
+    ],
+    "notes_settle_minutes": 60,
+    "register_detail": 60,
+    "register_pending": false,
+    "concept_merge": {
+      "_about": "Regular combining of overlapping concepts (jobs/concept_merge.py, run from Nightly when due). every_days: how often (0 = off; also on the home page). Name rules plus meaning (local embeddings, similarity threshold), then one Claude call confirms which pairs substantially overlap. Pending concepts are combined automatically (auto_merge_pending); pairs involving an approved concept become 'Same concept?' questions in the morning email.",
+      "every_days": 7,
+      "similarity": 0.83,
+      "max_pairs": 60,
+      "auto_merge_pending": true
+    }
+  },
+  "pacing": {
+    "_about": "Overnight pacing (jobs/pacing.py, usage_probe.py): books and long summaries run until tonight's share of the week's unused usage is spent, aiming to end each week at weekly_goal_pct, never taking the 5-hour session past session_max_pct (room for your other Claude use). If usage can't be read, the fixed *_fallback limits apply. queue.books_per_night / claude_calls_per_day are used only when enabled is false.",
+    "enabled": true,
+    "weekly_goal_pct": 90,
+    "session_max_pct": 80,
+    "daytime_pct_per_day": 5,
+    "books_max": 20,
+    "books_fallback": 1,
+    "calls_max": 400,
+    "night_cheap": true,
+    "night_items_max": 80,
+    "check_every": 5,
+    "calls_fallback": 60,
+    "default_cost": {
+      "book": {
+        "session_per_100k_words": 20,
+        "week_per_100k_words": 3
+      },
+      "summary": {
+        "session_per_100k_words": 20,
+        "week_per_100k_words": 3
+      }
+    },
+    "min_cost": {
+      "session": 3,
+      "week": 0.5
+    }
+  },
+  "blocked_hosts": [],
+  "related": {
+    "enabled": true,
+    "model": "BAAI/bge-small-en-v1.5",
+    "words": 400
+  },
+  "search": {
+    "enabled": true,
+    "model": "BAAI/bge-small-en-v1.5",
+    "hook_minutes": 2,
+    "nightly_minutes": 30,
+    "kw_weight": 0.75,
+    "rrf_k": 30
+  },
+  "mcp": {
+    "_about": "Vault connector (service/vault_mcp.py; plan 2026-10-08 Vault search, section 6). caller_check: off | log | enforce (enforce once the log shows calls come from caller_range).",
+    "enabled": false,
+    "port": 8767,
+    "hosts": [],
+    "caller_range": "160.79.104.0/21",
+    "caller_check": "enforce",
+    "daily_requests": 20,
+    "results_max": 20
+  },
+  "doc_sync": {
+    "enabled": false,
+    "files": {}
+  },
+  "originals": {
+    "_about": "Text of embedded originals into the search index (jobs/originals.py; plan 2026-10-08 Vault search, phase 4). Order: book originals, card-only PDF articles/references/recipes, manuals. Task Originals at 02:45 uses leftover night time until stop_by, after the queue work; on request (originals.py request) Intake starts it in the daytime for up to 3 hours. No Claude usage.",
+    "enabled": true,
+    "stop_by": "05:30",
+    "night_start": "02:00",
+    "card_max_words": 600,
+    "max_file_mb": 200
+  }
+}

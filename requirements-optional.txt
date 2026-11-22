@@ -1,0 +1,18 @@
+# Optional features. setup/install.ps1 installs each group only when its feature is on in config/vault.json.
+
+# [search]  local search index and "related" suggestions (search.enabled, related.enabled)
+fastembed>=0.8,<1
+numpy>=2.0,<3
+
+# [connector]  Vault connector (MCP) for claude.ai (mcp.enabled)
+mcp>=1.13,<2
+uvicorn>=0.30,<1
+
+# [youtube]  YouTube "Remember" playlist summaries via Gemini (remember.enabled)
+google-genai>=2.0,<3
+google-api-python-client>=2.150,<3
+google-auth-oauthlib>=1.2,<2
+youtube-transcript-api>=1.2,<2
+
+# [browser]  retry of pages that need a real browser (jobs/browser_retry.py); then run: python -m playwright install chromium
+playwright>=1.50,<2

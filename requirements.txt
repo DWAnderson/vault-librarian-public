@@ -1,0 +1,20 @@
+# Core runtime (Python 3.12). setup/install.ps1 installs this into the app's own venv.
+# Lower bounds are the versions in use when this file was written; the upper bounds hold back major versions.
+pyyaml>=6.0,<7
+requests>=2.32,<3
+lxml>=6.0,<7
+trafilatura>=2.0,<3
+extruct>=0.18,<1
+pypdf>=6.0,<7
+tzdata>=2025.1
+html2text>=2025.4.15
+flask>=3.1,<4
+waitress>=3.0,<4
+pywin32>=306
+
+# File intake (PDF, Office, e-mail files, OCR). OCR also needs Tesseract; e-books need Calibre (see README).
+ocrmypdf>=17.0,<18
+pymupdf>=1.26,<2
+markitdown>=0.1.8,<0.2
+extract-msg>=0.55,<1
+chardet>=5.2

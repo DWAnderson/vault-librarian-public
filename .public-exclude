@@ -1,0 +1,17 @@
+# Paths left out of the public copy (setup/make_public.ps1). One git pathspec per line; folders end with /.
+# They describe one person's own vault, machines and build history, or are one-time migration scripts.
+docs/plans/
+docs/DEVELOPER-NOTES.md
+Vault Librarian - User Manual.md
+tests/search_questions.json
+setup/move_runtimes.ps1
+setup/fix_task_times.ps1
+setup/phase0_checks.ps1
+setup/phase0_checks.py
+setup/phase0_ping.ps1
+setup/phase0_ping.py
+setup/phase4_setup.ps1
+setup/queue/apply_switchover.py
+setup/queue/make_folders.py
+setup/queue/fix_pilot_note.py
+setup/remember/
