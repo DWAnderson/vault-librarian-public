@@ -32,7 +32,7 @@ CFG = {
     "lock_stale_minutes": 120,
     "intake": {"enabled": False, "batch": 20, "remember_folder": "Remember", "confidential_domains": ["lawfirm.example"],
                "signature_markers": ["Pat Example"], "verbatim_max_words": 2000},
-    "queue": {"enabled": True, "files_enabled": True, "dropbox_path": str(TMP / "dropbox"), "confirm_over_usd": 0.25},
+    "queue": {"enabled": True, "files_enabled": True, "dropbox_path": str(TMP / "dropbox"), "confirm_over_week_pct": 2},
     "analysis": {"auto": True, "since": (NOW - dt.timedelta(hours=1)).isoformat(timespec="seconds")},
 }
 C.APP = TMP
@@ -77,6 +77,7 @@ note("Concepts/Regulatory capture.md", "Concept", "When regulators come to serve
      aliases=["Agency capture"], description="When regulators come to serve the industry they regulate.")
 
 CALLS = []
+SYSTEM = []
 ANSWER = {
     "description": "Argues that prices coordinate dispersed knowledge.",
     "in_brief": "An essay arguing that markets use knowledge no planner has.",
@@ -105,6 +106,7 @@ ANSWER = {
 
 def fake_ask(instructions, material, cwd, timeout=300, model=None, **kw):
     CALLS.append((instructions[:40], material))
+    SYSTEM.append((instructions, kw.get("system_extra") or ""))   # the concept register goes in the system prompt since 2026-11-13 (prompt cache)
     if instructions.startswith("You analyze one item"):
         ans = json.loads(json.dumps(ANSWER))
         if material.startswith("ITEM: Munger"):
@@ -147,7 +149,7 @@ items = [i for i in store.all() if Q.route_of(i) == "analyze"]
 paths = sorted(i["source_ref"]["path"] for i in items)
 check(paths == ["Resources/Hayek on knowledge.md", "Resources/Munger on public choice.md", "Resources/Short.md"],
       f"collect picks new filed notes of the scope types only (got {paths})")
-an = "Resources/Hayek on knowledge - Analysis.md"
+an = "Resources/Hayek on knowledge (Analysis).md"
 check((VAULT / an).exists(), "analysis note written beside the item")
 fm, body = fm_body(an)
 check(fm.get("type") == "Analysis" and fm.get("status") == "draft" and fm["generated"]["by"] == "claude/claude-code-cli",
@@ -164,12 +166,12 @@ check("Not a candidate" not in body and "loves" not in body, "related links outs
 check("tags" not in fm, "analysis carries no tags (hubs stay clean)")
 mat = [m for i, m in CALLS if i.startswith("You analyze one item") and "Munger" in m.split("\n", 1)[0]]
 check(mat and "TRANSCRIPT-MARKER" in mat[0], "a video summary's transcript is part of the material")
-check(mat and "Regulatory capture (also: Agency capture)" in mat[0] and "Airbnb regulation" in mat[0],
-      "register and candidates are in the material")
+check(any("Regulatory capture (also: Agency capture)" in s for i, s in SYSTEM if i.startswith("You analyze one item"))
+      and mat and "Airbnb regulation" in mat[0], "register in the system prompt, candidates in the material")
 short = next(i for i in store.all() if i["source_ref"]["path"] == "Resources/Short.md")
 check(short["status"] == "skipped", f"too-short note skipped ({short['status']})")
 cfm, cbody = fm_body("Concepts/Regulatory capture.md")
-check("## Discussed in" in cbody and "[[Hayek on knowledge - Analysis|Hayek on knowledge]] — cited as a risk of planning" in cbody,
+check("## Discussed in" in cbody and "[[Hayek on knowledge (Analysis)|Hayek on knowledge]] — cited as a risk of planning" in cbody,
       "concept note lists the analysis under Discussed in")
 pend = json.loads((TMP / "queue" / "concepts.json").read_text(encoding="utf-8"))
 dk = pend["pending"].get("Dispersed knowledge") or {}
@@ -195,7 +197,7 @@ check("(p. 1: \u201cMarkets coordinate dispersed knowledge through prices that n
 check("Knowledge is dispersed (p. 2) *(unverified)*" in body0 and fm0.get("quotes_unverified", 0) >= 1,
       "(A) an invented quote is marked unverified and counted")
 # (C) Munger disagrees with Hayek: Hayek's analysis (Claude's note) hears about it; The owner-owned notes never do
-mbody0 = fm_body("Resources/Munger on public choice - Analysis.md")[1]
+mbody0 = fm_body("Resources/Munger on public choice (Analysis).md")[1]
 check(("- [[Munger on public choice]] disagrees with this: knowledge vs incentives" in body0)
       != ("- [[Hayek on knowledge]] disagrees with this: knowledge vs incentives" in mbody0),
       "(C) the older item's analysis (only) gets a later-items line")
@@ -212,7 +214,7 @@ check((VAULT / "Concepts/Dispersed knowledge.md").exists(), "approved concept no
 dfm, dbody = fm_body("Concepts/Dispersed knowledge.md")
 check(dfm.get("type") == "Concept" and dfm.get("description") == "Knowledge of particular circumstances held by many people.",
       "concept note frontmatter (description = first sentence)")
-check(dbody.count("- [[") >= 2 and "Munger on public choice - Analysis|" in dbody, "new concept lists both analyses")
+check(dbody.count("- [[") >= 2 and "Munger on public choice (Analysis)|" in dbody, "new concept lists both analyses")
 check("### Where your sources disagree" in dbody and "disagrees with [[" in dbody, "(D) concept page shows where sources disagree")
 fm, body = fm_body(an)
 check("- [[Dispersed knowledge]] — the central idea (p. 1)" in body, "approved concept now linked in the analysis")
@@ -258,7 +260,7 @@ check(len(bk) == 1 and "OWNER'S OWN LINE" in bk[0].read_text(encoding="utf-8"), 
 Q.main(["analyze", "tag:economics"])
 queued = [i["source_ref"]["path"] for i in Q.Store(CFG).all() if i["status"] == "ready" and Q.route_of(i) == "analyze"]
 check(queued == ["Resources/Airbnb regulation.md"], f"tag: target queues only notes without an analysis ({queued})")
-CFG["queue"]["confirm_over_usd"] = 0.0001
+CFG["queue"]["confirm_over_week_pct"] = 0.0001   # the confirm rule is in % of the week since 2026-10-06
 Q.main(["analyze", "Old article"])
 for i in Q.Store(CFG).all():                           # a queued request counts as released; test the gate on a fresh one
     if i["source_ref"].get("path") == "Resources/Old article.md":
@@ -267,13 +269,13 @@ for i in Q.Store(CFG).all():                           # a queued request counts
 run()
 st = {i["source_ref"]["path"]: i for i in Q.Store(CFG).all() if Q.route_of(i) == "analyze"}
 check(st["Resources/Old article.md"]["status"] == "held" and st["Resources/Old article.md"]["needs"] == "confirm",
-      "over confirm_over_usd: held to confirm")
+      "over confirm_over_week_pct: held to confirm")
 qs = organize.queue_questions(CFG, print, 1)
 q = next(q for q in qs if q.get("item") == st["Resources/Old article.md"]["id"])
 check(q["text"].startswith("Analyze it?"), "the email asks 'Analyze it?'")
 organize.apply_queue(CFG, print, {"queue": [q]}, {q["id"]: "a"})
 check(Q.Store(CFG).get(q["item"])["status"] == "ready", "approved: ready for the next run")
-CFG["queue"]["confirm_over_usd"] = 0.25
+CFG["queue"]["confirm_over_week_pct"] = 2
 
 # ---- 5b. (E) weekly concept check -> "Same concept?" -> merge
 import yaml  # noqa: E402
@@ -311,7 +313,7 @@ mats = [m for i, m in CALLS[n_before:] if i.startswith("You analyze one item") a
 check(mats and "OWNER-MARKER" in mats[-1].split("ITEM TEXT:")[0] and "OWNER-MARKER" not in mats[-1].split("ITEM TEXT:")[1],
       "the owner's '## My notes' go to the model as their notes, not as item text")
 check(mats and "LINKED-MARKER" in mats[-1], "a note of his that links to the item is included")
-afm, abody = fm_body("Resources/Airbnb regulation - Analysis.md")
+afm, abody = fm_body("Resources/Airbnb regulation (Analysis).md")
 check(afm.get("notes_hash") and "## Your notes" in abody and "[[Airbnb thoughts]]" in abody, "analysis has a Your notes section")
 n_before = len(CALLS)
 run()
@@ -323,15 +325,18 @@ check(not any(r[0] == "How-to ref" for r in rows), "Reference outside Resources 
 
 # ---- 5d. The owner's properties: my_note and see_also feed the analysis; new items get them, empty and last
 hp = VAULT / "Resources/Airbnb regulation.md"
-hp.write_text(hp.read_text(encoding="utf-8").replace("---\n", '---\nmy_note: "TAKE-MARKER overstated"\nsee_also: ["[[Old article]]"]\n', 1),
-              encoding="utf-8")
+_t = hp.read_text(encoding="utf-8").replace("---\n", '---\nmy_note: "TAKE-MARKER overstated"\n', 1)
+# the item already has a see_also (its analysis link, families.py): add to it, as editing the property in Obsidian would
+_t = _t.replace("see_also: [", 'see_also: ["[[Old article]]", ', 1) if "\nsee_also: [" in _t else \
+    _t.replace("---\n", '---\nsee_also: ["[[Old article]]"]\n', 1)
+hp.write_text(_t, encoding="utf-8")
 n_before = len(CALLS)
 run()
 mats = [m for i, m in CALLS[n_before:] if i.startswith("You analyze one item") and m.startswith("ITEM: Airbnb")]
 check(mats and "TAKE-MARKER" in mats[-1].split("ITEM TEXT:")[0] and "He links this item to: [[Old article]]" in mats[-1],
       "my_note and see_also reach the model as the owner's notes")
 check(mats and "\"Old article\" [Article] (owner's see_also)" in mats[-1], "see_also notes are always candidates, marked as his")
-_, ab = fm_body("Resources/Airbnb regulation - Analysis.md")
+_, ab = fm_body("Resources/Airbnb regulation (Analysis).md")
 check("[[Old article]]" in ab.split("## Related")[1], "a see_also note always appears under Related")
 spec = [{"id": "p1", "type": "Article", "title": "Props test", "description": "A test.", "fields": {}, "resource": None,
          "body": "Some text.", "doug_note": "", "original": None, "original_name": None, "generated_by": "process:file-intake"}]

@@ -104,12 +104,13 @@ with tempfile.TemporaryDirectory() as tmp:
     for d in ("2000-01-01", "2000-01-02"):
         (tmp / "reports" / f"organize-{d}.json").unlink()
 
-    # 6. mail health
-    C.mail_health(cfg, "read", False, "HTTP 502")
-    C.mail_health(cfg, "read", False, "HTTP 504")
+    # 6. mail health (recorded only while mail is on, i.e. a mailbox is set)
+    mcfg = dict(cfg, mailbox="mailbox@example.com")
+    C.mail_health(mcfg, "read", False, "HTTP 502")
+    C.mail_health(mcfg, "read", False, "HTTP 504")
     h = C.mail_health_read()["read"]
     check(h["failed_in_row"] == 2 and h["last_error"] == "HTTP 504" and "down_since" in h, "failures counted")
-    C.mail_health(cfg, "read", True)
+    C.mail_health(mcfg, "read", True)
     h = C.mail_health_read()["read"]
     check(h["failed_in_row"] == 0 and "down_since" not in h and "last_ok" in h, "success clears the count")
 

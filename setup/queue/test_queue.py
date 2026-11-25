@@ -18,6 +18,8 @@ sys.path.insert(0, str(APPDIR / "jobs"))
 for name in ("organize", "update_email"):
     m = types.ModuleType(name)
     m.has_pending = lambda: False
+    m.has_unapplied = lambda: False                 # saved answers awaiting a retry (2026-11-23)
+    m.catch_up_send = lambda *a, **k: None
     sys.modules.setdefault(name, m)
 
 import common as C  # noqa: E402
@@ -69,7 +71,7 @@ claude_cli.ask = fake_ask
 LINKS = []
 
 
-def fake_save_url(cfg, log, url, doug_note="", captured_via=None, dry=False):
+def fake_save_url(cfg, log, url, doug_note="", captured_via=None, dry=False, **kw):   # html, title_hint
     LINKS.append((url, captured_via, dry))
     if dry:
         return {"ok": True, "dry": True, "would": "write a Web Clipping note"}

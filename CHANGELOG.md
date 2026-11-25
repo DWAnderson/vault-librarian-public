@@ -2,6 +2,23 @@
 
 A short history. The private repository also keeps detailed design notes for each change.
 
+## 2026-11-23: concept questions and answer retries
+- A concept is asked about once two different items use it: a book's chapters count as one item (before, two
+  chapters of one book were enough). Concepts used by one book go to the overnight review instead.
+- Concept questions say how many items each concept is linked to (a book's chapters count once), in the
+  heading and the line below it.
+- Concept questions are asked most-used first, and "Not now" brings one back after 7 days instead of the next
+  morning (`analysis.later_days`).
+- New `jobs/concept_review.py`: each night Claude (route `concept_review`, Opus) reviews up to 20 concepts that
+  only one item has used for 30+ days on one question: is it an interesting idea, or an interesting take on
+  one, that is not common knowledge? It suggests keep or drop, with a reason. The morning update asks up to 10
+  "Keep this concept?" questions a day, outside the 15-question cap (`analysis.concept_review`).
+- Concept merge: meaning threshold 0.77 (was 0.83), up to 150 pairs a run in calls of 50, confirmed by Opus
+  (was Sonnet), and every 3 days while it still finds overlaps (`every_days_backlog`), else every 7.
+- Answers to the daily update are saved in the proposal before they are applied. An apply that stops partway is
+  retried from the saved answers by Intake and the 06:00 run (up to 3 tries; then one email), instead of the
+  questions being asked again.
+
 ## 2026-11-22 (later): names from the config, public copy
 - New `owner` and `pc_name` settings. Claude's instructions, the connector's descriptions, messages, reports and
   the notes the app writes (`generated.by`, the owner's note callout) take the owner's name and the PC's name

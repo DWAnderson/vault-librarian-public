@@ -653,6 +653,11 @@ def queue_questions(cfg, log, first_id):
         out += analyze.concept_questions(cfg, i, max(0, QUEUE_MAX - len(out)))
     except Exception as e:  # noqa: BLE001
         log(f"concept questions skipped: {type(e).__name__}: {e}")
+    try:   # one-item concepts Claude reviewed overnight: keep or drop (2026-11-23); their own quota, not QUEUE_MAX
+        import concept_review
+        out += concept_review.questions(cfg, max([q["id"] for q in out] + [first_id - 1]) + 1)
+    except Exception as e:  # noqa: BLE001
+        log(f"concept review questions skipped: {type(e).__name__}: {e}")
     return out
 
 
@@ -974,7 +979,7 @@ def apply_queue(cfg, log, prop, ans):
         opt = q["options"].get(ans.get(q["id"]) or "")
         if not opt or not opt.get("action"):
             continue
-        if q.get("kind") in ("concept", "concept_dup"):
+        if q.get("kind") in ("concept", "concept_dup", "concept_review"):
             import analyze
             line = analyze.apply_concept(cfg, log, q, opt["action"])
             if line:
@@ -1336,6 +1341,18 @@ def prep(cfg, log, dry):
         log("organize prep: " + nightly.restart_if_stale(log, dry)[0])
     except Exception as e:  # noqa: BLE001
         log(f"organize prep: service restart check failed: {e}")
+    if not dry and has_unapplied():   # answers saved but not applied: apply them before asking anything again
+        lk = C.VaultLock(cfg, f"{C.pc_name()} organize-retry")  # not organize-apply: that would take over a running apply's lock
+        ok, lnote = lk.acquire()
+        if lnote:
+            log(f"organize prep: {lnote}")
+        if ok:
+            try:
+                retry_failed(cfg, log)
+            except Exception as e:  # noqa: BLE001
+                log(f"organize prep: retry failed: {type(e).__name__}: {e}")
+            finally:
+                lk.release()
     paths = unfiled(vault, int(cfg.get("organize", {}).get("batch", 40)))
     pairs = find_pairs(vault, [p.relative_to(vault).as_posix() for p in paths])
     tpaths = set(pairs.values())
@@ -1450,6 +1467,49 @@ def keep_open_token(cfg, log, f, prop, dry):
     (keep / f"organize-{old.get('day')}-{C.now(cfg):%H%M%S}.json").write_text(
         json.dumps(old, ensure_ascii=False, indent=1), encoding="utf-8")
     log(f"organize prep: replaced the open proposal for {old.get('day')} (kept its link; old copy in {keep.name})")
+
+
+RETRY_MAX = 3
+
+
+def retry_failed(cfg, log):
+    """Re-apply answers that were saved but never finished (the apply crashed or was killed) before anything asks
+    those questions again (2026-11-23, the owner). Caller holds the vault lock. Called by intake every 30 minutes
+    and by the 06:00 prep. Each try counts; after RETRY_MAX the day is marked apply_failed, the owner gets one
+    email, and the next morning's questions ask again. Returns the summaries of the answers applied."""
+    done = []
+    for d, (f, prop) in sorted(pending().items()):
+        sub = prop.get("submitted")
+        if not sub:
+            continue
+        n = int(sub.get("attempts") or 0)
+        if n >= RETRY_MAX:
+            prop.update(status="apply_failed", failed_at=C.now(cfg).isoformat(timespec="seconds"))
+            f.write_text(json.dumps(prop, ensure_ascii=False, indent=1), encoding="utf-8")
+            log(f"organize: the {d} answers failed {n} times; giving up (asked again in the next update)")
+            try:
+                C.send_mail(cfg, f"[{U.NOTICE} {d}] Your answers couldn't be applied",
+                            U.simple(U.fmt_day(d), "Obsidian Vault Update",
+                                     f"<p style=\"margin:0 0 10px 0;\">Your answers to the {U.e(d)} update ({U.e(sub.get('via') or '')}) "
+                                     f"were tried {n} times and failed each time, so <b>what didn't get done is asked again</b> "
+                                     "in the next morning's update. Anything already filed stays filed.</p>"
+                                     f"<p style=\"margin:0;font-size:10pt;color:#616161;\">Details: the organize and server logs "
+                                     f"for {U.e(d)} on {U.e(C.pc_name(cfg))}.</p>", "Not applied", "warn"))
+            except Exception as e:  # noqa: BLE001
+                log(f"apply-failed email not sent: {type(e).__name__}: {e}")
+            continue
+        ans = {(int(k) if str(k).isdigit() else k): v for k, v in (sub.get("answers") or {}).items()}
+        log(f"organize: the {d} answers were saved but not applied (try {n}); applying them again")
+        try:
+            done.append(apply_answers(cfg, log, f, prop, ans, sub.get("mode") or "letters", sub.get("via") or "web page",
+                                      sub.get("notes")))
+        except Exception as e:  # noqa: BLE001
+            log(f"organize: retry of the {d} answers failed: {type(e).__name__}: {e}")
+    return done
+
+
+def has_unapplied():
+    return any((p.get("submitted") for _, p in pending().values()))
 
 
 def supersede_older(cfg, log, day, dry=False):
@@ -1686,8 +1746,23 @@ def apply_answers(cfg, log, f, prop, ans, mode, via, notes=None, progress=None):
             return None
     vault = Path(cfg["vault_path"])
     day = prop["day"]
+    # Save the answers before acting on them (2026-11-23): on 2026-11-22 an apply crashed after filing, the answers
+    # were never written down, and the next morning asked everything again. retry_failed() re-runs saved answers.
+    sub = prop.get("submitted") or {}
+    keyed = {str(k): v for k, v in ans.items()}
+    retry = bool(sub) and sub.get("answers") == keyed and sub.get("mode") == mode
+    try:
+        json.dumps(notes)
+        keep_notes = notes
+    except (TypeError, ValueError):
+        keep_notes = None
+    prop["submitted"] = {"answers": keyed, "mode": mode, "via": sub.get("via", via) if retry else via,
+                         "notes": {str(k): v for k, v in keep_notes.items()} if isinstance(keep_notes, dict) else keep_notes,
+                         "at": sub.get("at") if retry else C.now(cfg).isoformat(timespec="seconds"),
+                         "attempts": int(sub.get("attempts") or 0) + 1 if retry else 1}
+    f.write_text(json.dumps(prop, ensure_ascii=False, indent=1), encoding="utf-8")
     plan, new_tags = build_plan(prop, ans, day)
-    if mode != "skip":
+    if mode != "skip" and not retry:   # a retry must not log the same filing choices twice
         try:
             record_choices(vault, prop, plan["items"], ans, prop.get("picks") or {})
             st = fstate()
@@ -1762,6 +1837,9 @@ def apply_answers(cfg, log, f, prop, ans, mode, via, notes=None, progress=None):
     left = len([it for it in prop["items"] if it["path"] not in filed_paths and it["path"] not in tset_])
     prop.update(status="applied", answers={str(k): v for k, v in ans.items()}, mode=mode, via=via,
                 applied=C.now(cfg).isoformat(timespec="seconds"), filed=len(main_items))
+    if retry:
+        prop["retried"] = prop["submitted"]["attempts"] - 1
+    prop.pop("submitted", None)
     f.write_text(json.dumps(prop, ensure_ascii=False, indent=1), encoding="utf-8")
     names = {it["path"]: (it.get("rename_to") or it["path"].rsplit("/", 1)[-1][:-3]) for it in prop["items"]}
     rows = "".join(f"<tr><td style=\"padding:3px 8px 3px 0;\">&#10003; {U.e(names.get(it['path'], it['path']))}</td>"

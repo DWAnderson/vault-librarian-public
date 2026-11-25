@@ -208,6 +208,18 @@ def main():
             organize.catch_up_send(cfg, C.Log(cfg, "organize"), dry)
         except Exception as e:  # noqa: BLE001
             C.Log(cfg, "organize")(f"catch-up send failed: {type(e).__name__}: {e}")
+    if not dry and organize.has_unapplied():   # answers saved but never applied (an apply crashed), 2026-11-23
+        lk = C.VaultLock(cfg, f"{C.pc_name()} organize-retry")  # not organize-apply: that would take over a running apply's lock
+        ok, lnote = lk.acquire()
+        if lnote:
+            C.Log(cfg, "organize")(lnote)
+        if ok:
+            try:
+                organize.retry_failed(cfg, C.Log(cfg, "organize"))
+            except Exception as e:  # noqa: BLE001
+                C.Log(cfg, "organize")(f"answer retry failed: {type(e).__name__}: {e}")
+            finally:
+                lk.release()
     if s is not None and not dry and cfg.get("organize", {}).get("approve_by_email_reply") and organize.has_pending():
         lk = C.VaultLock(cfg, f"{C.pc_name()} organize-apply")
         ok, lnote = lk.acquire()

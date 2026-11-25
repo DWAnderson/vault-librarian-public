@@ -15,3 +15,4 @@ setup/queue/apply_switchover.py
 setup/queue/make_folders.py
 setup/queue/fix_pilot_note.py
 setup/remember/
+.git-share.json

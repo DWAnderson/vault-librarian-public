@@ -537,7 +537,8 @@ def organize_page(day):
                           f"<span><b>{k})</b> {html.escape(o.get('label', ''))}{'<span class=sug>Suggested</span>' if k == 'a' else ''}</span></label>")
                        for k, o in sorted(q["options"].items()))
         opts += f"<label class=opt><input type=radio name=q{q['id']} value=''><span class=note>Decide later</span></label>"
-        chip = {"concept": "New concept", "concept_dup": "Same concept?", "title": "Name check"}.get(q.get("kind"), "Intake queue")
+        chip = {"concept": "New concept", "concept_dup": "Same concept?", "concept_review": "Keep this concept?",
+                "title": "Name check"}.get(q.get("kind"), "Intake queue")
         cards.append(f"<div class=card style='border-left-color:#c4314b'><span class=chip>{chip}</span>"
                      f"<div><b>{q['id']}. {html.escape(q['title'])}</b></div>"
                      f"<div class=sub>{html.escape(q['text'])}{(' &middot; ' + html.escape(q['size'])) if q.get('size') else ''}"

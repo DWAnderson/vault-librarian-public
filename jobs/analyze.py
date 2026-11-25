@@ -56,7 +56,9 @@ DEFAULTS = {
     "usd_in_per_mtok": 6.25,    # API-equivalent estimate (claude -p writes the prompt to cache)
     "usd_out_per_mtok": 25.0,
     "out_tokens": 4500,        # pilot 2026-09-28: 2,500-5,800 output tokens per item
-    "ask_after_uses": 2,        # (B) a new concept is asked about once this many analyses use it
+    "ask_after_uses": 2,        # (B) a new concept is asked about once this many ITEMS use it (2026-11-23: a book's
+                                # chapter analyses count once; before, two chapters of one book were enough)
+    "later_days": 7,            # "Not now" on a concept question: asked again after this many days (2026-11-23)
     "reference_folders": ["Resources"],   # automatic analysis of Reference notes only here (2026-09-28)
     "notes_settle_minutes": 60,           # redo after the owner's notes change, once they've been left alone this long
     "notes_max_words": 4000,
@@ -1290,6 +1292,20 @@ def write_analysis(cfg, vault, notes, n, j, reg, cands, a, old=None, text="", mi
 
 
 # ---------------------------------------------------------------- concept approvals (06:00 email / web page)
+def concept_items(p):
+    """How many items (works) use a pending concept: a book's chapter analyses and its whole-work analysis count
+    once (vault_names.work_of)."""
+    return len({VN.work_of(a) for a in p.get("analyses") or []})
+
+
+def concept_where(p):
+    """The question's 'where' line: how many items use the concept (2026-11-23, the owner), then where it began."""
+    k, n = concept_items(p), len(p.get("analyses") or [])
+    return (f"Linked to {k} item{'s' if k != 1 else ''}"
+            + (f" ({n} analyses, counting chapters separately)" if n != k else "")
+            + f"; first proposed in the analysis of \"{p.get('first_from')}\"")
+
+
 def concept_questions(cfg, first_id, limit):
     """New concepts waiting for the owner, as queue-style questions (organize.queue_questions)."""
     out, i = [], first_id
@@ -1308,20 +1324,29 @@ def concept_questions(cfg, first_id, limit):
                         "c": {"label": "They're different ideas (don't ask again)", "action": "dup_keep"},
                         "d": {"label": "Not now (ask again next week)", "action": None}}})
         i += 1
-    for name, p in sorted(pend["pending"].items(), key=lambda kv: kv[1].get("added") or ""):
-        if len(p.get("analyses") or []) < int(a["ask_after_uses"]) and not p.get("ask"):
+    today = C.now(cfg).strftime("%Y-%m-%d")
+    later = int(a.get("later_days") or 7)
+    # Most-used first (2026-11-23, the owner): oldest-first showed the same few concepts every morning while
+    # 296 waited. A concept many analyses share matters most; ties go to the oldest.
+    ranked = sorted(pend["pending"].items(), key=lambda kv: (-concept_items(kv[1]), -len(kv[1].get("analyses") or []),
+                                                             kv[1].get("added") or ""))
+    for name, p in ranked:
+        if concept_items(p) < int(a["ask_after_uses"]) and not p.get("ask"):
             continue                                          # (B) asked once a second item uses it
+        if (p.get("snooze_until") or "") > today:
+            continue                                          # "Not now": back after later_days
         opts = {"a": {"label": "Add it as a concept note", "action": "concept_add"}}
         if p.get("merge_into"):
             opts["b"] = {"label": f"Same as the existing concept \"{p['merge_into']}\" (link there; keep this name as an alias)",
                          "action": "concept_merge"}
         opts["c"] = {"label": "Not a concept worth a note (keep it as plain text)", "action": "concept_reject"}
-        opts["d"] = {"label": "Not now (ask again tomorrow)", "action": None}
-        n_an = len(p.get("analyses") or [])
-        out.append({"id": i, "kind": "concept", "item": f"concept:{name}", "title": name, "concept": name,
+        opts["d"] = {"label": f"Not now (ask again in {later} days)", "action": "concept_later"}
+        k = concept_items(p)
+        # the count in the heading too (2026-11-23, the owner); answers use "concept", never the title
+        out.append({"id": i, "kind": "concept", "item": f"concept:{name}", "concept": name,
+                    "title": f"{name} (linked to {k} item{'s' if k != 1 else ''})",
                     "text": p.get("definition") or "(no definition)",
-                    "where": f"New concept from the analysis of \"{p.get('first_from')}\""
-                             + (f" and {n_an - 1} other(s)" if n_an > 1 else ""),
+                    "where": concept_where(p),
                     "size": "", "why": p.get("why_new") or "", "options": opts})
         i += 1
         if len(out) >= limit:
@@ -1413,6 +1438,16 @@ def apply_concept(cfg, log, q, action):
     p = pend["pending"].get(name)
     if not p:
         return f"{name}: already handled"
+    if action == "concept_later":      # 2026-11-23: "Not now" means a week, not tomorrow
+        import datetime as _dt
+        days = int(acfg(cfg).get("later_days") or 7)
+        p["snooze_until"] = (C.now(cfg) + _dt.timedelta(days=days)).strftime("%Y-%m-%d")
+        save_pending(pend)
+        return f"{name}: asked again after {p['snooze_until']}"
+    if action == "concept_wait":       # review of a one-item concept: keep waiting for a second item to use it
+        p.setdefault("review", {})["answer"] = "wait"
+        save_pending(pend)
+        return f"{name}: left pending until another item uses it"
     notes = scan(vault)
     mark = f"`{name}`{PENDING_MARK}"
 

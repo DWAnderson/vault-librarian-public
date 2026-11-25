@@ -6,14 +6,15 @@ also on the home page). Steps:
   1. candidates  name rules (concept_lint.why_same: same name apart from plural/case, one inside the other, very
                  similar spelling, mostly the same words) and meaning (local embeddings of name + description,
                  cosine >= `similarity`), over approved and pending concepts; pairs the owner said are different skipped
-  2. confirm     one Claude call (route concept_merge, Sonnet) over the top `max_pairs` meaning pairs: which
+  2. confirm     Claude calls (route concept_merge; Opus since 2026-11-23), `batch_pairs` pairs per call, over the
+                 top `max_pairs` meaning pairs: which
                  substantially overlap, and which name to keep. Name-rule pairs need no call.
   3. act         pending + pending  -> combined now (auto_merge_pending): one keeps the other's analyses and its name
                                        as an alias; analysis notes' pending marks are renamed
                  pending + approved -> the pending one is asked about with "Same as the existing concept ..."
                  approved + approved -> a "Same concept?" question in the morning email (as the weekly check did)
 State and the last result: queue\\concept-merge.json. Cost: local embeddings are free; the Claude call is ~5-15K
-tokens on Sonnet.
+tokens per call (Opus since 2026-11-23; was Sonnet).
 
     python jobs\\concept_merge.py               candidates and Claude's verdicts, changes nothing
     python jobs\\concept_merge.py --apply       act on them now (takes the vault lock)
@@ -30,7 +31,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common as C  # noqa: E402
 import analyze as A  # noqa: E402
 
-DEFAULTS = {"every_days": 7, "similarity": 0.83, "max_pairs": 60, "auto_merge_pending": True}
+DEFAULTS = {"every_days": 7, "every_days_backlog": 3, "similarity": 0.83, "max_pairs": 60, "batch_pairs": 50,
+            "auto_merge_pending": True}
 STATE = C.APP / "queue" / "concept-merge.json"
 
 PROMPT = """You review pairs of concepts from «owner's» Obsidian vault. «owner_about» Each concept is an idea, \
@@ -61,7 +63,12 @@ def due(cfg):
     days = int(m.get("every_days") or 0)
     if days <= 0:
         return False
-    last = load_state().get("last_run")
+    st = load_state()
+    # backlog (2026-11-23): while the last run confirmed pairs or left candidates unchecked, run every
+    # every_days_backlog days; once a run finds nothing new, back to every_days
+    if st.get("confirmed") or st.get("unchecked"):
+        days = min(days, int(m.get("every_days_backlog") or days))
+    last = st.get("last_run")
     if not last:
         return True
     try:
@@ -143,30 +150,37 @@ def confirm(cfg, pairs, log=print):
         out.append({**p, "keep": keep["name"], "merge": (b if keep is a else a)["name"]})
     if not ask:
         return out, None
-    lines = []
-    for i, p in enumerate(ask, 1):
-        lines.append(f"PAIR {i}:\n  A: {p['a']['name']} [{_status(p['a'])}] - {p['a']['description'][:300]}\n"
-                     f"  B: {p['b']['name']} [{_status(p['b'])}] - {p['b']['description'][:300]}")
     work = Path(cfg["local_root"]) / "work"
-    text, info = claude_cli.ask(PROMPT, "\n\n".join(lines), work, timeout=600, route="concept_merge")
-    if not text:
-        return out, f"Claude call failed: {info.get('error')}"
-    mm = re.search(r"\{.*\}", text, re.S)
-    try:
-        verdicts = json.loads(mm.group(0)).get("pairs") or []
-    except Exception:  # noqa: BLE001
-        return out, "Claude's answer was not the JSON asked for"
-    for v in verdicts:
+    errs = []
+    size = max(1, int(m.get("batch_pairs") or 50))   # several calls of batch_pairs each (2026-11-23: up to 150 pairs)
+    for b0 in range(0, len(ask), size):
+        chunk = ask[b0:b0 + size]
+        lines = []
+        for i, p in enumerate(chunk, 1):
+            lines.append(f"PAIR {i}:\n  A: {p['a']['name']} [{_status(p['a'])}] - {p['a']['description'][:300]}\n"
+                         f"  B: {p['b']['name']} [{_status(p['b'])}] - {p['b']['description'][:300]}")
+        text, info = claude_cli.ask(PROMPT, "\n\n".join(lines), work, timeout=900, route="concept_merge")
+        if not text:
+            errs.append(f"Claude call failed: {info.get('error')}")
+            break                                         # the rest waits for the next run
+        mm = re.search(r"\{.*\}", text, re.S)
         try:
-            p = ask[int(v.get("n")) - 1]
-        except (TypeError, ValueError, IndexError):
+            verdicts = json.loads(mm.group(0)).get("pairs") or []
+        except Exception:  # noqa: BLE001
+            errs.append("Claude's answer was not the JSON asked for")
             continue
-        if not v.get("same"):
-            continue
-        names = {p["a"]["name"], p["b"]["name"]}
-        keep = v.get("keep") if v.get("keep") in names else p["a"]["name"]
-        out.append({**p, "keep": keep, "merge": (names - {keep}).pop(), "why": f"{p['why']}; {v.get('why') or ''}".strip("; ")})
-    return out, None
+        for v in verdicts:
+            try:
+                p = chunk[int(v.get("n")) - 1]
+            except (TypeError, ValueError, IndexError):
+                continue
+            if not v.get("same"):
+                continue
+            names = {p["a"]["name"], p["b"]["name"]}
+            keep = v.get("keep") if v.get("keep") in names else p["a"]["name"]
+            out.append({**p, "keep": keep, "merge": (names - {keep}).pop(),
+                        "why": f"{p['why']}; {v.get('why') or ''}".strip("; ")})
+    return out, "; ".join(errs) or None
 
 
 # ---------------------------------------------------------------- 3. act
@@ -241,6 +255,8 @@ def run(cfg, log=print, dry=True, use_claude=True):
                f"{len(done)} pending combined, {len(asked)} pending asked about, {len(dups)} 'Same concept?' questions"
                + (f"; {err}" if err else "") + (" (dry run)" if dry else ""))
     if not dry:
+        meaning = [p for p in pairs if not (p["source"] == "name" and not p["a"]["pending"] and not p["b"]["pending"])]
+        st.update({"confirmed": len(found), "unchecked": max(0, len(meaning) - int(mcfg(cfg)["max_pairs"]))})
         st.update({"last_run": C.now(cfg).isoformat(timespec="seconds"), "last": summary,
                    "combined": done, "asked": asked, "dup_pairs": [f"{d['merge']} -> {d['keep']}" for d in dups]})
         STATE.write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")

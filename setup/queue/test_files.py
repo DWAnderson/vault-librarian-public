@@ -20,6 +20,8 @@ sys.path.insert(0, str(APPDIR / "jobs"))
 for name in ("organize", "update_email"):
     m = types.ModuleType(name)
     m.has_pending = lambda: False
+    m.has_unapplied = lambda: False                 # saved answers awaiting a retry (2026-11-23)
+    m.catch_up_send = lambda *a, **k: None
     sys.modules.setdefault(name, m)
 import common as C  # noqa: E402
 
@@ -74,7 +76,7 @@ claude_cli.ask = fake_ask
 LINKS = []
 
 
-def fake_save_url(cfg, log, url, doug_note="", captured_via=None, dry=False):
+def fake_save_url(cfg, log, url, doug_note="", captured_via=None, dry=False, **kw):   # html, title_hint
     LINKS.append(url)
     return {"ok": True, "note": "Inbox/Linked page.md", "category": "article"}
 
@@ -218,8 +220,15 @@ def items():
     return Q.Store(C.load_config()).all()
 
 
+def _key(title):
+    return (title or "").lower().replace("-", " ")
+
+
 def item(title):
-    return next((x for x in items() if x.get("title") == title), None)
+    """The queue item for a file stem; intake now gives items readable titles ('memo' -> 'Memo')."""
+    xs = items()
+    return next((x for x in xs if x.get("title") == title), None) or \
+        next((x for x in xs if _key(x.get("title")) == _key(title)), None)
 
 
 def note_text(it):
@@ -295,14 +304,15 @@ try:
     import organize as O
     import update_email as UE
     qq = O.queue_questions(C.load_config(), print, 1)
-    kinds = {q["title"]: q["kind"] for q in qq}
-    check(kinds.get("policy-book") == "duplicate" and kinds.get("long-report") == "costly" and kinds.get("memo") == "confidential",
+    kinds = {_key(q["title"]): q["kind"] for q in qq}   # titles are readable now: 'policy-book' -> 'Policy Book'
+    check(kinds.get(_key("policy-book")) == "duplicate" and kinds.get(_key("long-report")) == "costly"
+          and kinds.get(_key("memo")) == "confidential",
           f"daily email asks about the duplicate, the costly book and the confidential file ({kinds})")
     prop = {"items": [], "questions": [], "new_tags": [], "dups": [], "queue": qq, "day": "2026-09-29", "web_token": "x"}
     subj, html, n = UE.build_daily(C.load_config(), "2026-09-29", prop, [], None)
     check("to decide" in html and "Already in the vault?" in html and n == 3, "questions appear in the email")
-    ids = {q["title"]: q["id"] for q in qq}
-    ans, mode = O.parse_answers(f"{ids['policy-book']}a {ids['long-report']}c {ids['memo']}b", prop)
+    ids = {_key(q["title"]): q["id"] for q in qq}
+    ans, mode = O.parse_answers(f"{ids[_key('policy-book')]}a {ids[_key('long-report')]}c {ids[_key('memo')]}b", prop)
     lines = O.apply_queue(C.load_config(), print, prop, ans)
     check(len(lines) == 3, "answers applied: " + " | ".join(lines))
     R.main(["--live"])
@@ -330,7 +340,8 @@ try:
     out = sp.run([sys.executable, str(C.VL / "okf_lint.py"), str(VAULT), "--no-orphans"], capture_output=True, text=True,
                  encoding="utf-8", errors="replace").stdout
     check(" 0 errors" in out, "all new notes pass the OKF check: " + out.strip().splitlines()[-1][:120])
-    check(len(CALLS) <= 12, f"model calls kept small ({len(CALLS)})")
+    work = [c for c in CALLS if not c.startswith("You read the OPENING")]   # title checks (titlecheck.py) counted apart
+    check(len(work) <= 12, f"model calls kept small ({len(work)} + {len(CALLS) - len(work)} title checks: {sorted(set(work))})")
 finally:
     C.APP = REAL_APP
     shutil.rmtree(TMP, ignore_errors=True)

@@ -341,7 +341,8 @@ def queue_card(q, links=None):
     chipl = {"title": ("Name check", "#e8f0fe", "#1a4b8c"), "duplicate": ("Already in the vault?", "#fde7e9", "#a4262c"), "costly": ("Large item: OK?", "#fff4ce", "#7a5a00"),
              "confidential": ("Firm or client material?", "#fde7e9", "#a4262c"),
              "concept": ("New concept?", "#e8f0fe", "#1a4b8c"),
-             "concept_dup": ("Same concept?", "#e8f0fe", "#1a4b8c")}.get(q["kind"], ("Intake queue", "#edebe9", "#424242"))
+             "concept_dup": ("Same concept?", "#e8f0fe", "#1a4b8c"),
+             "concept_review": ("Keep this concept?", "#e8f0fe", "#1a4b8c")}.get(q["kind"], ("Intake queue", "#edebe9", "#424242"))
     sub = e(q["text"]) + (f"<br>{e(q['size'])}" if q.get("size") else "") + f"<br><span style=\"color:#8a8886;\">{e(q['where'])}</span>"
     return card(chip(*chipl) + f"<div style=\"font-weight:bold;padding-top:6px;\">{q['id']}. {e(q['title'])}</div>"
                 f"<div style=\"font-size:10.5pt;color:#616161;\">{sub}</div>" + view_links(links) + option_rows(q["options"]), "#c4314b")

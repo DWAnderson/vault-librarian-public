@@ -19,6 +19,8 @@ sys.path.insert(0, str(APPDIR / "jobs"))
 for name in ("organize", "update_email"):
     m = types.ModuleType(name)
     m.has_pending = lambda: False
+    m.has_unapplied = lambda: False                 # saved answers awaiting a retry (2026-11-23)
+    m.catch_up_send = lambda *a, **k: None
     sys.modules.setdefault(name, m)
 import common as C  # noqa: E402
 
@@ -38,6 +40,7 @@ CFG = {
                "signature_markers": ["Pat Example"], "verbatim_max_words": 2000},
     "queue": {"enabled": True, "files_enabled": True, "dropbox_path": str(DROP.resolve()), "settle_minutes": 0,
               "books_per_night": 1, "claude_calls_per_day": 60},
+    "pacing": {"enabled": False},   # these tests use the fixed limits above; pacing would read the real plan usage
 }
 for sub in ("logs", "work", "snapshots", "queue"):
     (LOCAL / sub).mkdir(parents=True, exist_ok=True)
@@ -118,8 +121,15 @@ def check(cond, what):
         FAILS.append(what)
 
 
+def _key(title):
+    return (title or "").lower().replace("-", " ")
+
+
 def item(title):
-    return next((x for x in Q.Store(C.load_config()).all() if x.get("title") == title), None)
+    """The queue item for a file stem; intake now gives items readable titles ('airport-leasing' -> 'Airport Leasing')."""
+    xs = Q.Store(C.load_config()).all()
+    return next((x for x in xs if x.get("title") == title), None) or \
+        next((x for x in xs if _key(x.get("title")) == _key(title)), None)
 
 
 def note_text(it):
@@ -163,7 +173,7 @@ try:
     check(len(stopped) == 1 and stopped[0]["attempts"] == 0, "usage limit -> item back to ready, not failed")
     cached = list((LOCAL / "queue" / "payload" / stopped[0]["id"] / "answers").glob("c*.json"))
     check(len(cached) == 2 and len(CALLS) - before == 3, "the two answers before the limit are cached; no more calls that run")
-    other = item("runway-funding") if stopped[0]["title"] == "airport-leasing" else item("airport-leasing")
+    other = item("runway-funding") if _key(stopped[0]["title"]) == _key("airport-leasing") else item("airport-leasing")
     check(other["status"] == "ready" and "usage limit" not in (other["why"] or ""), "the other book waits untouched")
 
     # 4. next night: resumes from the cache, then does the next book

@@ -1,6 +1,8 @@
 """Simulates an expired Claude sign-in (bogus CLAUDE_CODE_OAUTH_TOKEN) against claude_cli, llm.run and
 claude_auth, with state in a temp file and mail captured instead of sent. 2026-10-24."""
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -11,7 +13,8 @@ import claude_auth as A  # noqa: E402
 import claude_cli  # noqa: E402
 import llm  # noqa: E402
 
-tmp = Path(tempfile.mkdtemp(prefix="signin-test-", dir=str(C.APP / "setup")))
+tmp = Path(tempfile.mkdtemp(prefix="signin-test-"))     # system temp, removed on exit (was left in setup\)
+atexit.register(shutil.rmtree, tmp, True)
 A.STATE = tmp / "claude-signin.json"
 sent = []
 C.send_mail = lambda cfg, subj, html, to=None: sent.append((subj, html)) or 202

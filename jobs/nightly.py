@@ -215,6 +215,14 @@ def main():
         except Exception as e:  # noqa: BLE001
             failures.append(f"concept merge failed: {type(e).__name__}: {e}")
 
+        try:   # one-item concepts: Claude suggests keep / merge / drop for the morning email (2026-11-23)
+            import concept_review
+            line = concept_review.run_if_due(cfg, log, dry)
+            if line:
+                sections.append(("Concepts reviewed", line))
+        except Exception as e:  # noqa: BLE001
+            failures.append(f"concept review failed: {type(e).__name__}: {e}")
+
         # 4. indexes and hubs (live only: they write files)
         if not dry:
             for s in ("build_indexes.py", "build_hubs.py"):

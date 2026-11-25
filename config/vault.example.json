@@ -153,7 +153,8 @@
       "organize": "sonnet",
       "intake-summary": "sonnet",
       "link-summary": "sonnet",
-      "concept_merge": "sonnet",
+      "concept_merge": "opus",
+      "concept_review": "opus",
       "manual": "haiku",
       "title": "haiku",
       "article": "haiku",
@@ -195,11 +196,21 @@
     "register_detail": 60,
     "register_pending": false,
     "concept_merge": {
-      "_about": "Regular combining of overlapping concepts (jobs/concept_merge.py, run from Nightly when due). every_days: how often (0 = off; also on the home page). Name rules plus meaning (local embeddings, similarity threshold), then one Claude call confirms which pairs substantially overlap. Pending concepts are combined automatically (auto_merge_pending); pairs involving an approved concept become 'Same concept?' questions in the morning email.",
+      "_about": "Regular combining of overlapping concepts (jobs/concept_merge.py, run from Nightly when due). every_days: how often (0 = off; also on the home page). Name rules plus meaning (local embeddings, similarity threshold), then Claude (Opus, batch_pairs pairs per call) confirms which pairs substantially overlap; while a run confirms pairs or leaves candidates unchecked, it runs every every_days_backlog days (2026-11-23). Pending concepts are combined automatically (auto_merge_pending); pairs involving an approved concept become 'Same concept?' questions in the morning email.",
       "every_days": 7,
-      "similarity": 0.83,
-      "max_pairs": 60,
+      "similarity": 0.77,
+      "max_pairs": 150,
+      "batch_pairs": 50,
+      "every_days_backlog": 3,
       "auto_merge_pending": true
+    },
+    "concept_review": {
+      "_about": "Keep-or-drop review of concepts only one item uses (jobs/concept_review.py, run from Nightly; 2026-11-23). Each night Claude (route concept_review, Opus) judges up to per_night one-item concepts at least min_age_days old; its keep/merge/drop suggestions become Keep this concept? questions, ask_per_day a day, outside the 15-question cap. No more are judged while backlog_max reviews wait for an answer.",
+      "enabled": true,
+      "min_age_days": 30,
+      "per_night": 20,
+      "ask_per_day": 10,
+      "backlog_max": 30
     }
   },
   "pacing": {

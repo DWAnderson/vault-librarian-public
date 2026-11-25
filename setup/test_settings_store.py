@@ -113,7 +113,7 @@ else:
         gone = "Probe" not in ps("Get-ScheduledTask -TaskPath '\\VaultLibrarianTest\\' -ErrorAction SilentlyContinue | % TaskName").stdout
         check(gone, "throwaway task removed")
 
-info = SS.tasks_info({"schedule": {}}, fresh=True)
+info = SS.tasks_info(cfg, fresh=True)   # the real config: the task folder comes from it (schedule.task_path or local_root)
 check(any(r["name"] == "Nightly" for r in info), f"tasks_info reads the real tasks ({len(info)} found)")
 shutil.rmtree(tmp, ignore_errors=True)
 print("\nall passed" if not fails else f"\n{fails} FAILED")
